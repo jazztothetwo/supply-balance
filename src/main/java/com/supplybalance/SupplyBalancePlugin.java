@@ -1,4 +1,4 @@
-package com.example;
+package com.supplybalance;
 
 import com.google.inject.Provides;
 import javax.inject.Inject;
@@ -14,15 +14,17 @@ import net.runelite.client.plugins.PluginDescriptor;
 
 @Slf4j
 @PluginDescriptor(
-	name = "Example"
+		name = "Supply Balance",
+		description = "Tracks the long-term gain and loss of supplies through your bank",
+		tags = {"bank", "supplies", "ironman", "resources", "tracker"}
 )
-public class ExamplePlugin extends Plugin
+public class SupplyBalancePlugin extends Plugin
 {
 	@Inject
 	private Client client;
 
 	@Inject
-	private ExampleConfig config;
+	private SupplyBalanceConfig config;
 
 	@Override
 	protected void startUp() throws Exception
@@ -46,8 +48,8 @@ public class ExamplePlugin extends Plugin
 	}
 
 	@Provides
-	ExampleConfig provideConfig(ConfigManager configManager)
+	SupplyBalanceConfig provideConfig(ConfigManager configManager)
 	{
-		return configManager.getConfig(ExampleConfig.class);
+		return configManager.getConfig(SupplyBalanceConfig.class);
 	}
 }

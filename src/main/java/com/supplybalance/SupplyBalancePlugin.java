@@ -16,7 +16,8 @@ import net.runelite.api.ItemContainer;
 import java.util.HashSet;
 import java.util.Set;
 import net.runelite.api.ItemComposition;
-//import net.runelite.client.config.ConfigManager;
+import net.runelite.client.events.RuneScapeProfileChanged;
+import net.runelite.client.config.ConfigManager;
 
 @Slf4j
 @PluginDescriptor(
@@ -26,9 +27,9 @@ import net.runelite.api.ItemComposition;
 )
 public class SupplyBalancePlugin extends Plugin
 {
-	//private static final String CONFIG_GROUP = "supply-balance";
-	//private static final String INFLOW_KEY_PREFIX = "inflow.";
-	//private static final String OUTFLOW_KEY_PREFIX = "outflow.";
+	private static final String CONFIG_GROUP = "supply-balance";
+	private static final String INFLOW_KEY_PREFIX = "inflow.";
+	private static final String OUTFLOW_KEY_PREFIX = "outflow.";
 
 	private Map<Integer, Integer> previousBankSnapshot;
 	private final Map<Integer, Long> totalInflow = new HashMap<>();
@@ -37,18 +38,27 @@ public class SupplyBalancePlugin extends Plugin
 	@Inject
 	private Client client;
 
-	//@Inject
-	//private ConfigManager configManager;
+	@Inject
+	private ConfigManager configManager;
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
 		previousBankSnapshot = null;
-		log.debug("Supply balance started");
+		totalInflow.clear();
+		totalOutflow.clear();
+	}
+
+	@Subscribe
+	public void onRuneScapeProfileChanged(RuneScapeProfileChanged event)
+	{
+		previousBankSnapshot = null;
+		totalInflow.clear();
+		totalOutflow.clear();
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
 		previousBankSnapshot = null;
 		log.debug("Supply Balance stopped");
@@ -91,32 +101,52 @@ public class SupplyBalancePlugin extends Plugin
 			int currentQuantity = currentBankSnapshot.getOrDefault(itemId, 0);
 			int change = currentQuantity - previousQuantity;
 
+			if (change == 0)
+			{
+				continue;
+			}
+
+			if (!totalInflow.containsKey(itemId))
+			{
+				totalInflow.put(itemId, loadSavedTotal(INFLOW_KEY_PREFIX, itemId));
+			}
+
+			if (!totalOutflow.containsKey(itemId))
+			{
+				totalOutflow.put(itemId, loadSavedTotal(OUTFLOW_KEY_PREFIX, itemId));
+			}
+
 			if (change > 0)
 			{
 				long existingInflow = totalInflow.getOrDefault(itemId, 0L);
 				long newInflow = existingInflow + change;
 				
 				totalInflow.put(itemId, newInflow);
+				configManager.setRSProfileConfiguration(
+						CONFIG_GROUP,
+						INFLOW_KEY_PREFIX + itemId,
+						newInflow);
 			}
-			else if (change < 0)
+			else
 			{
 				long amountOut = -change;
 				long existingOutFlow = totalOutflow.getOrDefault(itemId, 0L);
 				long newOutflow = existingOutFlow + amountOut;
 
 				totalOutflow.put(itemId, newOutflow);
+				configManager.setRSProfileConfiguration(
+						CONFIG_GROUP,
+						OUTFLOW_KEY_PREFIX + itemId,
+						newOutflow);
 			}
-			if (change != 0)
-			{
-				long inflow = totalInflow.getOrDefault(itemId, 0L);
-				long outflow = totalOutflow.getOrDefault(itemId, 0L);
-				long net = inflow - outflow;
 
-				log.debug("Item {} changed by {} | In: {} Out: {} Net: {}",
-						itemId, change, inflow, outflow, net);
-			}
-		}
+            long inflow = totalInflow.getOrDefault(itemId, 0L);
+            long outflow = totalOutflow.getOrDefault(itemId, 0L);
+            long net = inflow - outflow;
 
+            log.debug("Item {} changed by {} | In: {} Out: {} Net: {}",
+                    itemId, change, inflow, outflow, net);
+        }
 		previousBankSnapshot = currentBankSnapshot;
 	}
 
@@ -138,5 +168,20 @@ public class SupplyBalancePlugin extends Plugin
 			snapshot.put(itemID, quantity);
 		}
 		return snapshot;
+	}
+
+	private long loadSavedTotal(String keyPrefix, int itemId)
+	{
+		Long savedTotal = configManager.getRSProfileConfiguration(
+				CONFIG_GROUP,
+				keyPrefix + itemId,
+				Long.class);
+
+		if (savedTotal == null)
+		{
+			return 0L;
+		}
+
+		return savedTotal;
 	}
 }
